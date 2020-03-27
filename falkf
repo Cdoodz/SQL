@@ -1,0 +1,46 @@
+SELECT ALLDATA.* -----SELECT SCORE PRIOR TO FALL
+FROM (
+              SELECT DISTINCT SUMMED.*
+              ,JHH.[EVENT_END_DT_TM]   [JHH Fall Risk- Total Score Date]
+              ,JHH.[RESULT_VAL]   [JHH Fall Risk- Total Score]
+              ,ROW_NUMBER() OVER (PARTITION BY SUMMED.VISIT,FALL_EVENT_END_DT_TM ORDER BY FALL_EVENT_END_DT_TM,EVENT_END_DT_TM DESC ) ROWNUM
+              FROM (
+                           SELECT FALLDATA.VISIT -------3) SUMMARIZE FALL DATA INTO ONE ROW
+                           ,MAX(CASE WHEN FALL_EVENT_CD_DISPLAY = 'FALL FACILITY' THEN FALL_RESULT_VAL END) [FALL FACILITY]
+                           ,MAX(CASE WHEN FALL_EVENT_CD_DISPLAY = 'FALL LOCATION' THEN FALL_RESULT_VAL END) [FALL LOCATION]
+                           ,MAX(CASE WHEN FALL_EVENT_CD_DISPLAY = 'FALL OCCURRED' THEN FALL_RESULT_VAL END) [FALL OCCURRED]
+                           ,MAX(CASE WHEN FALL_EVENT_CD_DISPLAY = 'FALL DETAILS' THEN FALL_RESULT_VAL END) [FALL DETAILS]
+                           ,FALL_EVENT_END_DT_TM 
+                           FROM (
+                                         SELECT VISITS.VISIT -----2) GET FALLS DATA
+                                         ,FALL.[EVENT_END_DT_TM] FALL_EVENT_END_DT_TM
+                                         ,FALL.[EVENT_CD_DISPLAY] FALL_EVENT_CD_DISPLAY
+                                         ,FALL.[RESULT_VAL] FALL_RESULT_VAL 
+                                         FROM (
+                                                              SELECT V.VISIT -------1) GET REDUCE THE NUMBER OF VISITS YOU NEED TO PROCESS IN NURSING DOC FILE
+                                                              FROM [CDM].[dbo].[CDM_VISIT]  V
+                                                              LEFT JOIN [CDM].[dbo].[CDM_ENCOUNTER] E ON V.VISIT = E.VISIT AND HOSP_ASSOC = 'VM' ----TO EXCLUDE MEMORIAL VISITS 
+                                                                     where V.DISCH_DT >= '20190101' 
+                                                                     and PAT_TYPE IN ('IPMED','IPSUR','OBM','OBS','OPCB')
+                                                              ) VISITS
+                                         JOIN (SELECT  *  -----GET FALL DATA
+                                                   FROM [CDM].[dbo].[CDM_NURSING_DOC]  
+                                                   WHERE  DISP1 = 'Assessment'   -----USE INDEXES TO SPEED PROCESSING TIME
+                                                         AND DISP2 = 'Safety/Risk'  
+                                                         AND DISP3 in ('Emergency Response')
+                                                         AND  [EVENT_END_DT_TM]>'2019-01-01 00:00:00.000' 
+                                                         AND  [DISP4] in ( 'fall')
+                                                       ) AS  FALL ON FALL.VISIT =VISITS.VISIT
+                                         )FALLDATA
+                           GROUP BY FALLDATA.VISIT,  FALL_EVENT_END_DT_TM
+              )SUMMED
+              LEFT JOIN (SELECT *  -------4) GET SCORE DATA PRIOR TO FALLS 
+                           FROM [CDM].[dbo].[CDM_NURSING_DOC]       
+                        WHERE  DISP1 = 'Assessment' 
+                             AND DISP2 = 'Safety/Risk'  
+                             AND DISP3 in ( 'JHH Fall Risk Assessment','Emergency Response')
+                             AND  [EVENT_END_DT_TM]>'2019-01-01 00:00:00.000' 
+                             AND  [DISP4] in ( 'JHH Fall Risk- Total Score' )
+                           ) AS  JHH ON JHH.VISIT = SUMMED.VISIT  AND  JHH.EVENT_END_DT_TM < SUMMED.FALL_EVENT_END_DT_TM
+) ALLDATA
+WHERE ROWNUM = 1
