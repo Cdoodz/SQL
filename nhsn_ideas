@@ -1,3 +1,9 @@
+--vent
+--disp1='Pain'	
+--disp2='Pain Assessment CPOT'	
+--disp3='CPOT-Patient On Ventilator'
+
+/*-----------------------------------------------------------*/
 SELECT DISTINCT [EVENT_CD_DISPLAY]
 FROM [CDM].[dbo].[CDM_NURSING_DOC]  
 WHERE  DISP1 = 'Assessment'   -----USE INDEXES TO SPEED PROCESSING TIME
